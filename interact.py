@@ -16,6 +16,8 @@ import warnings
 import torch
 import torch.nn.functional as F
 
+from transformers import cached_path
+
 from transformers import OpenAIGPTLMHeadModel, OpenAIGPTTokenizer, GPT2LMHeadModel, GPT2Tokenizer
 
 ATTR_TO_SPECIAL_TOKEN = {'bos_token': '<bos>', 'eos_token': '<eos>', 'pad_token': '<pad>',
@@ -144,9 +146,9 @@ def sample_sequence(personality, history, tokenizer, model, args, current_output
 def run():
     parser = ArgumentParser()
     parser.add_argument("--dataset_path", type=str, default="", help="Path or url of the dataset. If empty download from S3.")
-    parser.add_argument("--dataset_cache", type=str, default='./dataset_cache', help="Path or url of the dataset cache")
+    parser.add_argument("--dataset_cache", type=str, default='./CachedDataset/dataset_cache', help="Path or url of the dataset cache")
     parser.add_argument("--model", type=str, default="openai-gpt", help="Model type (openai-gpt or gpt2)", choices=['openai-gpt', 'gpt2'])  # anything besides gpt2 will load openai-gpt
-    parser.add_argument("--model_checkpoint", type=str, default="./runs/Nov16_16-11-09_deusexmachina_openai-gpt/", help="Path, url or short name of the model")
+    parser.add_argument("--model_checkpoint", type=str, default="./finetuned_chatbot", help="Path, url or short name of the model")
     parser.add_argument("--max_history", type=int, default=2, help="Number of previous utterances to keep in history")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device (cuda or cpu)")
 
@@ -186,21 +188,21 @@ def run():
     personalities = [dialog["personality"] for dataset in dataset.values() for dialog in dataset]
     personality = random.choice(personalities)
     logger.info("Selected personality: %s", tokenizer.decode(chain(*personality)))
-    
-    
+
+
     import asyncio
     import nest_asyncio
-    nest_asyncio.apply()
 
+    nest_asyncio.apply()
     from nio import AsyncClient, MatrixRoom, RoomMessageText
 
-    
+
     # Global variables
     mxid = "@chatbot:matrix.mheichler.de"  # Bot's username
     password = "mJBWq9nTdYZsYg"  # Bot's password
     hs_url = "https://matrix.mheichler.de"
     room_id = "!WCkuBFwvWVlGLsAgnu:matrix.mheichler.de"
-   
+
     #async def message_callback(room: MatrixRoom, event: RoomMessageText):
     #    print(
     #        f"Message received in room {room.display_name}\n"
@@ -208,16 +210,16 @@ def run():
     #    )
         #text_body = event.body
         #return await text_body
-    
-        
-        
+
+
+
     async def main() -> None:
         client = AsyncClient(hs_url, mxid)
 
         await client.login(password)
-        
+
         history = []
-        
+
         while (True):
             sync_response = await client.sync(30000)
 
@@ -233,7 +235,7 @@ def run():
                                 history.append(out_ids)
                                 history = history[-(2*args.max_history+1):]
                                 out_text = tokenizer.decode(out_ids, skip_special_tokens=True)
-        
+
                                 await client.room_send(room_id,message_type="m.room.message",
                                     content = {
                                         "msgtype": "m.text",
@@ -245,7 +247,7 @@ def run():
         #for event in client.rooms[0].timeline.events:
             #if isinstance(event, RoomMessageText):
                 #print (event.body)
-        
+
         #res = await client.joined_rooms()
         #print(res.rooms)
         #if room_id not in res.rooms:
@@ -253,16 +255,14 @@ def run():
         #    print(await client.join(room_id))
         #
         #text_body = await message_callback(MatrixRoom, RoomMessageText)
-        
+
         #if text_body:
         #print(text_body)
-        
+
         #await client.sync_forever(timeout=30000) # milliseconds
-    
+
 
     asyncio.get_event_loop().run_until_complete(main())
-    
+
 if __name__ == "__main__":
     run()
-    
-    
